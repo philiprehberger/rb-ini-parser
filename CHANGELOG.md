@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-03-28
+
+### Added
+
+- Inline comment support for `;` and `#` delimiters after values
+- Multiline values with backslash continuation
+- Escape sequence handling (`\n`, `\t`, `\\`, `\;`, `\#`) in parse and dump
+- `IniParser.diff(a, b)` to compare two parsed configurations
+- `IniParser.sections(string_or_path)` to extract section names without full parse
+
 ## [0.1.1] - 2026-03-26
 
 ### Added

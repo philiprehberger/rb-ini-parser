@@ -133,6 +133,141 @@ RSpec.describe Philiprehberger::IniParser do
     end
   end
 
+  describe 'inline comments' do
+    it 'strips semicolon inline comments' do
+      ini = 'host = localhost ; the server host'
+      result = described_class.parse(ini)
+
+      expect(result['host']).to eq('localhost')
+    end
+
+    it 'strips hash inline comments' do
+      ini = 'port = 8080 # default port'
+      result = described_class.parse(ini)
+
+      expect(result['port']).to eq(8080)
+    end
+
+    it 'preserves escaped semicolons in values' do
+      ini = 'formula = a\;b'
+      result = described_class.parse(ini, coerce_types: false)
+
+      expect(result['formula']).to eq('a;b')
+    end
+
+    it 'preserves escaped hashes in values' do
+      ini = 'color = \#ff0000'
+      result = described_class.parse(ini, coerce_types: false)
+
+      expect(result['color']).to eq('#ff0000')
+    end
+
+    it 'strips inline comments in sections' do
+      ini = <<~INI
+        [database]
+        host = localhost ; primary host
+        port = 5432 # postgres default
+      INI
+
+      result = described_class.parse(ini)
+
+      expect(result['database']['host']).to eq('localhost')
+      expect(result['database']['port']).to eq(5432)
+    end
+
+    it 'does not strip comment chars without preceding space' do
+      ini = 'url = http://example.com/path#anchor'
+      result = described_class.parse(ini, coerce_types: false)
+
+      expect(result['url']).to eq('http://example.com/path#anchor')
+    end
+
+    it 'does not strip comments from quoted values' do
+      ini = 'msg = "hello ; world"'
+      result = described_class.parse(ini)
+
+      expect(result['msg']).to eq('hello ; world')
+    end
+  end
+
+  describe 'multiline values' do
+    it 'joins backslash-continued lines' do
+      ini = "key = line1\\\n  line2"
+      result = described_class.parse(ini, coerce_types: false)
+
+      expect(result['key']).to eq('line1 line2')
+    end
+
+    it 'joins multiple continuation lines' do
+      ini = "key = part1\\\n  part2\\\n  part3"
+      result = described_class.parse(ini, coerce_types: false)
+
+      expect(result['key']).to eq('part1 part2 part3')
+    end
+
+    it 'trims leading whitespace on continuation lines' do
+      ini = "key = hello\\\n    world"
+      result = described_class.parse(ini, coerce_types: false)
+
+      expect(result['key']).to eq('hello world')
+    end
+
+    it 'works within sections' do
+      ini = <<~INI
+        [section]
+        description = this is a\\\n  long value
+      INI
+
+      result = described_class.parse(ini, coerce_types: false)
+
+      expect(result['section']['description']).to eq('this is a long value')
+    end
+  end
+
+  describe 'escape sequences' do
+    it 'unescapes \\n to newline' do
+      ini = 'msg = hello\\nworld'
+      result = described_class.parse(ini, coerce_types: false)
+
+      expect(result['msg']).to eq("hello\nworld")
+    end
+
+    it 'unescapes \\t to tab' do
+      ini = 'msg = col1\\tcol2'
+      result = described_class.parse(ini, coerce_types: false)
+
+      expect(result['msg']).to eq("col1\tcol2")
+    end
+
+    it 'unescapes \\\\ to backslash' do
+      ini = 'path = C:\\\\Users\\\\test'
+      result = described_class.parse(ini, coerce_types: false)
+
+      expect(result['path']).to eq('C:\\Users\\test')
+    end
+
+    it 'unescapes \\; to literal semicolon' do
+      ini = 'data = value\\;more'
+      result = described_class.parse(ini, coerce_types: false)
+
+      expect(result['data']).to eq('value;more')
+    end
+
+    it 'unescapes \\# to literal hash' do
+      ini = 'color = \\#red'
+      result = described_class.parse(ini, coerce_types: false)
+
+      expect(result['color']).to eq('#red')
+    end
+
+    it 'handles escape sequences in quoted values' do
+      ini = 'msg = "hello\\nworld"'
+      result = described_class.parse(ini)
+
+      expect(result['msg']).to eq("hello\nworld")
+    end
+  end
+
   describe '.load' do
     it 'parses an INI file from disk' do
       file = Tempfile.new(['test', '.ini'])
@@ -185,6 +320,41 @@ RSpec.describe Philiprehberger::IniParser do
 
       expect(result).to include('enabled = true')
       expect(result).to include('debug = false')
+    end
+
+    it 'escapes newlines in string values' do
+      hash = { 'msg' => "hello\nworld" }
+      result = described_class.dump(hash)
+
+      expect(result).to include('msg = hello\nworld')
+    end
+
+    it 'escapes tabs in string values' do
+      hash = { 'msg' => "col1\tcol2" }
+      result = described_class.dump(hash)
+
+      expect(result).to include('msg = col1\tcol2')
+    end
+
+    it 'escapes backslashes in string values' do
+      hash = { 'path' => 'C:\\Users' }
+      result = described_class.dump(hash)
+
+      expect(result).to include('path = C:\\\\Users')
+    end
+
+    it 'escapes semicolons in string values' do
+      hash = { 'data' => 'a;b' }
+      result = described_class.dump(hash)
+
+      expect(result).to include('data = a\\;b')
+    end
+
+    it 'escapes hashes in string values' do
+      hash = { 'color' => '#red' }
+      result = described_class.dump(hash)
+
+      expect(result).to include('color = \\#red')
     end
   end
 
@@ -245,6 +415,180 @@ RSpec.describe Philiprehberger::IniParser do
     end
   end
 
+  describe '.diff' do
+    it 'detects added global keys' do
+      a = { 'name' => 'App' }
+      b = { 'name' => 'App', 'version' => 2 }
+
+      result = described_class.diff(a, b)
+
+      expect(result[:added]).to eq('version' => 2)
+      expect(result[:removed]).to be_empty
+      expect(result[:changed]).to be_empty
+    end
+
+    it 'detects removed global keys' do
+      a = { 'name' => 'App', 'version' => 2 }
+      b = { 'name' => 'App' }
+
+      result = described_class.diff(a, b)
+
+      expect(result[:removed]).to eq('version' => 2)
+      expect(result[:added]).to be_empty
+      expect(result[:changed]).to be_empty
+    end
+
+    it 'detects changed global keys' do
+      a = { 'name' => 'OldApp' }
+      b = { 'name' => 'NewApp' }
+
+      result = described_class.diff(a, b)
+
+      expect(result[:changed]).to eq('name' => { from: 'OldApp', to: 'NewApp' })
+      expect(result[:added]).to be_empty
+      expect(result[:removed]).to be_empty
+    end
+
+    it 'detects added sections' do
+      a = {}
+      b = { 'db' => { 'host' => 'localhost' } }
+
+      result = described_class.diff(a, b)
+
+      expect(result[:added]).to eq('db' => { 'host' => 'localhost' })
+    end
+
+    it 'detects removed sections' do
+      a = { 'db' => { 'host' => 'localhost' } }
+      b = {}
+
+      result = described_class.diff(a, b)
+
+      expect(result[:removed]).to eq('db' => { 'host' => 'localhost' })
+    end
+
+    it 'detects added keys within sections' do
+      a = { 'db' => { 'host' => 'localhost' } }
+      b = { 'db' => { 'host' => 'localhost', 'port' => 5432 } }
+
+      result = described_class.diff(a, b)
+
+      expect(result[:added]).to eq('db' => { 'port' => 5432 })
+      expect(result[:changed]).to be_empty
+    end
+
+    it 'detects removed keys within sections' do
+      a = { 'db' => { 'host' => 'localhost', 'port' => 5432 } }
+      b = { 'db' => { 'host' => 'localhost' } }
+
+      result = described_class.diff(a, b)
+
+      expect(result[:removed]).to eq('db' => { 'port' => 5432 })
+    end
+
+    it 'detects changed keys within sections' do
+      a = { 'db' => { 'host' => 'localhost', 'port' => 5432 } }
+      b = { 'db' => { 'host' => '127.0.0.1', 'port' => 5432 } }
+
+      result = described_class.diff(a, b)
+
+      expect(result[:changed]).to eq('db' => { 'host' => { from: 'localhost', to: '127.0.0.1' } })
+    end
+
+    it 'returns empty diff for identical hashes' do
+      a = { 'name' => 'App', 'db' => { 'host' => 'localhost' } }
+      b = { 'name' => 'App', 'db' => { 'host' => 'localhost' } }
+
+      result = described_class.diff(a, b)
+
+      expect(result[:added]).to be_empty
+      expect(result[:removed]).to be_empty
+      expect(result[:changed]).to be_empty
+    end
+
+    it 'handles mixed additions, removals, and changes' do
+      a = {
+        'name' => 'OldApp',
+        'debug' => true,
+        'db' => { 'host' => 'localhost', 'port' => 5432 }
+      }
+      b = {
+        'name' => 'NewApp',
+        'version' => 1,
+        'db' => { 'host' => '10.0.0.1', 'name' => 'mydb' }
+      }
+
+      result = described_class.diff(a, b)
+
+      expect(result[:added]).to include('version' => 1)
+      expect(result[:added]['db']).to eq('name' => 'mydb')
+      expect(result[:removed]).to include('debug' => true)
+      expect(result[:removed]['db']).to eq('port' => 5432)
+      expect(result[:changed]).to include('name' => { from: 'OldApp', to: 'NewApp' })
+      expect(result[:changed]['db']).to eq('host' => { from: 'localhost', to: '10.0.0.1' })
+    end
+  end
+
+  describe '.sections' do
+    it 'returns section names from an INI string' do
+      ini = <<~INI
+        name = MyApp
+
+        [database]
+        host = localhost
+
+        [logging]
+        level = info
+      INI
+
+      result = described_class.sections(ini)
+
+      expect(result).to eq(%w[database logging])
+    end
+
+    it 'returns an empty array when there are no sections' do
+      ini = "name = MyApp\nversion = 1"
+      result = described_class.sections(ini)
+
+      expect(result).to eq([])
+    end
+
+    it 'reads section names from a file path' do
+      file = Tempfile.new(['test', '.ini'])
+      file.write("[server]\nhost = 0.0.0.0\n\n[cache]\nttl = 60\n")
+      file.close
+
+      result = described_class.sections(file.path)
+
+      expect(result).to eq(%w[server cache])
+    ensure
+      file&.unlink
+    end
+
+    it 'ignores comments and blank lines' do
+      ini = <<~INI
+        ; config
+        # another comment
+
+        [section1]
+        key = val
+
+        [section2]
+      INI
+
+      result = described_class.sections(ini)
+
+      expect(result).to eq(%w[section1 section2])
+    end
+
+    it 'preserves section order' do
+      ini = "[z_section]\n[a_section]\n[m_section]\n"
+      result = described_class.sections(ini)
+
+      expect(result).to eq(%w[z_section a_section m_section])
+    end
+  end
+
   describe 'roundtrip' do
     it 'parse then dump preserves data' do
       ini = <<~INI
@@ -264,6 +608,16 @@ RSpec.describe Philiprehberger::IniParser do
         'name' => 'MyApp',
         'database' => { 'host' => 'localhost', 'port' => 5432, 'ssl' => true }
       )
+    end
+
+    it 'roundtrips escape sequences' do
+      original = { 'msg' => "hello\nworld", 'path' => 'C:\\Users', 'data' => 'a;b' }
+      dumped = described_class.dump(original)
+      reparsed = described_class.parse(dumped, coerce_types: false)
+
+      expect(reparsed['msg']).to eq("hello\nworld")
+      expect(reparsed['path']).to eq('C:\\Users')
+      expect(reparsed['data']).to eq('a;b')
     end
   end
 end

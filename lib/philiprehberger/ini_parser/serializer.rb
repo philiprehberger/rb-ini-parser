@@ -6,6 +6,7 @@ module Philiprehberger
     #
     # Top-level scalar keys are written as global key=value pairs.
     # Top-level Hash values are written as [section] groups.
+    # String values containing special characters are escaped.
     class Serializer
       # Serialize a Hash to an INI string.
       #
@@ -63,15 +64,30 @@ module Philiprehberger
 
       # Format a single value for INI output.
       #
+      # Escapes special characters in string values.
+      #
       # @param value [Object] the value to format
       # @return [String] formatted value
       def format_value(value)
         case value
         when true  then 'true'
         when false then 'false'
-        when String then value
+        when String then escape(value)
         else value.to_s
         end
+      end
+
+      # Escape special characters in a string value.
+      #
+      # @param value [String]
+      # @return [String]
+      def escape(value)
+        value
+          .gsub('\\', '\\\\\\\\')
+          .gsub("\n", '\n')
+          .gsub("\t", '\t')
+          .gsub(';', '\;')
+          .gsub('#', '\#')
       end
     end
   end

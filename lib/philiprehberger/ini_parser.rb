@@ -9,6 +9,8 @@ module Philiprehberger
     class Error < StandardError; end
     class ParseError < Error; end
 
+    SECTION_RE = /\A\s*\[([^\]]+)\]\s*\z/
+
     # Parse an INI string into a Hash.
     #
     # Top-level keys become global entries. Sections become nested Hashes.
@@ -66,5 +68,94 @@ module Philiprehberger
         end
       end
     end
+
+    # Compare two parsed INI hashes and return a diff.
+    #
+    # @param a [Hash] first configuration (from parse)
+    # @param b [Hash] second configuration (from parse)
+    # @return [Hash] diff with :added, :removed, and :changed keys
+    def self.diff(a, b)
+      result = { added: {}, removed: {}, changed: {} }
+
+      all_keys = (a.keys + b.keys).uniq
+
+      all_keys.each do |key|
+        in_a = a.key?(key)
+        in_b = b.key?(key)
+
+        if in_a && in_b
+          diff_key(key, a[key], b[key], result)
+        elsif in_b
+          add_to_result(result[:added], key, b[key])
+        else
+          add_to_result(result[:removed], key, a[key])
+        end
+      end
+
+      result
+    end
+
+    # Extract section names from INI content without fully parsing values.
+    #
+    # @param string_or_path [String] INI content string or file path
+    # @return [Array<String>] section names
+    def self.sections(string_or_path)
+      content = File.exist?(string_or_path) ? File.read(string_or_path, encoding: 'utf-8') : string_or_path
+      names = []
+
+      content.each_line do |line|
+        match = SECTION_RE.match(line.strip)
+        names << match[1].strip if match
+      end
+
+      names
+    end
+
+    # @api private
+    def self.diff_key(key, val_a, val_b, result)
+      if val_a.is_a?(Hash) && val_b.is_a?(Hash)
+        diff_section(key, val_a, val_b, result)
+      elsif val_a.is_a?(Hash)
+        result[:removed][key] = val_a
+        add_to_result(result[:added], key, val_b)
+      elsif val_b.is_a?(Hash)
+        add_to_result(result[:removed], key, val_a)
+        result[:added][key] = val_b
+      elsif val_a != val_b
+        result[:changed][key] ||= {}
+        result[:changed][key] = { from: val_a, to: val_b }
+      end
+    end
+    private_class_method :diff_key
+
+    # @api private
+    def self.diff_section(section, hash_a, hash_b, result)
+      all_sub_keys = (hash_a.keys + hash_b.keys).uniq
+
+      all_sub_keys.each do |sub_key|
+        in_a = hash_a.key?(sub_key)
+        in_b = hash_b.key?(sub_key)
+
+        if in_a && in_b
+          if hash_a[sub_key] != hash_b[sub_key]
+            result[:changed][section] ||= {}
+            result[:changed][section][sub_key] = { from: hash_a[sub_key], to: hash_b[sub_key] }
+          end
+        elsif in_b
+          result[:added][section] ||= {}
+          result[:added][section][sub_key] = hash_b[sub_key]
+        else
+          result[:removed][section] ||= {}
+          result[:removed][section][sub_key] = hash_a[sub_key]
+        end
+      end
+    end
+    private_class_method :diff_section
+
+    # @api private
+    def self.add_to_result(hash, key, value)
+      hash[key] = value
+    end
+    private_class_method :add_to_result
   end
 end
