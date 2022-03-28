@@ -95,6 +95,57 @@ module Philiprehberger
       result
     end
 
+    # Check whether an INI string is syntactically valid.
+    #
+    # @param string [String] INI content
+    # @return [Boolean] true if the content parses without errors
+    def self.valid?(string)
+      parse(string)
+      true
+    rescue ParseError
+      false
+    end
+
+    # Retrieve a value from a parsed hash using a dot-separated path.
+    #
+    # @param hash [Hash] parsed configuration
+    # @param path [String] dot-separated key path (e.g. "database.host")
+    # @param default [Object] value to return if the path does not exist
+    # @return [Object] the value at the path, or the default
+    def self.get(hash, path, default: nil)
+      keys = path.to_s.split('.')
+      current = hash
+
+      keys.each do |key|
+        return default unless current.is_a?(Hash) && current.key?(key)
+
+        current = current[key]
+      end
+
+      current
+    end
+
+    # Set a value in a parsed hash using a dot-separated path.
+    #
+    # Creates intermediate section hashes as needed.
+    #
+    # @param hash [Hash] parsed configuration (mutated in place)
+    # @param path [String] dot-separated key path (e.g. "database.host")
+    # @param value [Object] the value to set
+    # @return [Object] the value that was set
+    def self.set(hash, path, value)
+      keys = path.to_s.split('.')
+      last = keys.pop
+      current = hash
+
+      keys.each do |key|
+        current[key] = {} unless current[key].is_a?(Hash)
+        current = current[key]
+      end
+
+      current[last] = value
+    end
+
     # Extract section names from INI content without fully parsing values.
     #
     # @param string_or_path [String] INI content string or file path

@@ -115,6 +115,26 @@ diff[:removed] # => {"section" => {"old_key" => "value"}}
 diff[:changed] # => {"section" => {"key" => {from: "old", to: "new"}}}
 ```
 
+### Dot-Path Access
+
+Retrieve or set nested values using dot-separated paths:
+
+```ruby
+config = Philiprehberger::IniParser.load("config.ini")
+
+Philiprehberger::IniParser.get(config, "database.host")                   # => "localhost"
+Philiprehberger::IniParser.get(config, "database.missing", default: 3306) # => 3306
+
+Philiprehberger::IniParser.set(config, "database.port", 5433)
+```
+
+### Validation
+
+```ruby
+Philiprehberger::IniParser.valid?("[section]\nkey = value") # => true
+Philiprehberger::IniParser.valid?("not valid ini")          # => false
+```
+
 ### Listing Sections
 
 ```ruby
@@ -132,6 +152,9 @@ sections = Philiprehberger::IniParser.sections("config.ini")
 | `IniParser.save(hash, path)` | Write a Hash to an INI file |
 | `IniParser.merge(base, override)` | Deep merge two INI configurations |
 | `IniParser.diff(a, b)` | Compare two parsed hashes and return added, removed, and changed keys |
+| `IniParser.valid?(string)` | Check if an INI string is syntactically valid |
+| `IniParser.get(hash, path, default: nil)` | Retrieve a value using a dot-separated path |
+| `IniParser.set(hash, path, value)` | Set a value using a dot-separated path |
 | `IniParser.sections(string_or_path)` | Extract section names without fully parsing values |
 
 ## Development

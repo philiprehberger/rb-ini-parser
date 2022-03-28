@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-09
+
+### Added
+- `valid?(string)` method to check INI syntax without raising exceptions
+- `get(hash, path, default: nil)` for dot-path access to nested config values
+- `set(hash, path, value)` for dot-path mutation of nested config values
+
 ## [0.2.1] - 2026-03-31
 
 ### Changed

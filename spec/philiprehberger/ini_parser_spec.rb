@@ -131,6 +131,11 @@ RSpec.describe Philiprehberger::IniParser do
 
       expect(result['empty']).to eq('')
     end
+
+    it 'raises ParseError for invalid lines' do
+      ini = "name = valid\nthis is not valid ini"
+      expect { described_class.parse(ini) }.to raise_error(Philiprehberger::IniParser::ParseError)
+    end
   end
 
   describe 'inline comments' do
@@ -586,6 +591,93 @@ RSpec.describe Philiprehberger::IniParser do
       result = described_class.sections(ini)
 
       expect(result).to eq(%w[z_section a_section m_section])
+    end
+  end
+
+  describe '.valid?' do
+    it 'returns true for valid INI content' do
+      expect(described_class.valid?("[section]\nkey = value")).to be true
+    end
+
+    it 'returns true for empty content' do
+      expect(described_class.valid?('')).to be true
+    end
+
+    it 'returns false for invalid content' do
+      expect(described_class.valid?('this is not valid ini')).to be false
+    end
+
+    it 'returns true for comments only' do
+      expect(described_class.valid?("; comment\n# another")).to be true
+    end
+  end
+
+  describe '.get' do
+    let(:config) do
+      {
+        'name' => 'MyApp',
+        'database' => { 'host' => 'localhost', 'port' => 5432 }
+      }
+    end
+
+    it 'retrieves a global key' do
+      expect(described_class.get(config, 'name')).to eq('MyApp')
+    end
+
+    it 'retrieves a nested key with dot path' do
+      expect(described_class.get(config, 'database.host')).to eq('localhost')
+    end
+
+    it 'returns nil for missing keys' do
+      expect(described_class.get(config, 'missing')).to be_nil
+    end
+
+    it 'returns nil for missing nested keys' do
+      expect(described_class.get(config, 'database.missing')).to be_nil
+    end
+
+    it 'returns default for missing keys' do
+      expect(described_class.get(config, 'missing', default: 'fallback')).to eq('fallback')
+    end
+
+    it 'returns default for missing nested paths' do
+      expect(described_class.get(config, 'no.such.path', default: 0)).to eq(0)
+    end
+
+    it 'returns the section hash for a section path' do
+      expect(described_class.get(config, 'database')).to eq('host' => 'localhost', 'port' => 5432)
+    end
+  end
+
+  describe '.set' do
+    it 'sets a global key' do
+      config = {}
+      described_class.set(config, 'name', 'MyApp')
+      expect(config['name']).to eq('MyApp')
+    end
+
+    it 'sets a nested key' do
+      config = { 'database' => { 'host' => 'localhost' } }
+      described_class.set(config, 'database.port', 5432)
+      expect(config['database']['port']).to eq(5432)
+    end
+
+    it 'creates intermediate hashes as needed' do
+      config = {}
+      described_class.set(config, 'database.host', 'localhost')
+      expect(config).to eq('database' => { 'host' => 'localhost' })
+    end
+
+    it 'overwrites existing values' do
+      config = { 'database' => { 'port' => 3306 } }
+      described_class.set(config, 'database.port', 5432)
+      expect(config['database']['port']).to eq(5432)
+    end
+
+    it 'replaces a scalar with a section when setting a deeper path' do
+      config = { 'db' => 'sqlite' }
+      described_class.set(config, 'db.host', 'localhost')
+      expect(config['db']).to eq({ 'host' => 'localhost' })
     end
   end
 
