@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-14
+
+### Added
+- `parse(string, interpolate: true)` to expand `${VAR}` references from parsed INI values or ENV
+- `parse(string, includes: true)` to process `@include path/to/other.ini` directives with circular detection
+- `validate(string)` to return an array of `{ line:, message: }` hashes for each syntax error
+- `to_env(hash)` to convert parsed INI hash to flat `SECTION_KEY=value` environment format
+
 ## [0.4.0] - 2026-04-09
 
 ### Added

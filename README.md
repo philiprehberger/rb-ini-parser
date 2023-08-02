@@ -87,6 +87,58 @@ config = Philiprehberger::IniParser.parse('msg = hello\nworld', coerce_types: fa
 config["msg"] # => "hello\nworld"
 ```
 
+### Variable Interpolation
+
+Expand `${VAR}` references in values after parsing. Variables resolve first from parsed INI values (using `section.key` paths), then fall back to environment variables. Unresolved variables remain as-is.
+
+```ruby
+config = Philiprehberger::IniParser.parse(<<~INI, interpolate: true)
+  [app]
+  name = MyApp
+
+  [logging]
+  prefix = ${app.name}-log
+INI
+
+config["logging"]["prefix"] # => "MyApp-log"
+```
+
+### Include Directives
+
+Process `@include path/to/other.ini` lines to load and merge referenced files. Circular includes raise an error.
+
+```ruby
+# main.ini:
+# @include database.ini
+# name = MyApp
+
+config = Philiprehberger::IniParser.parse(File.read("main.ini"), includes: true)
+```
+
+### Detailed Validation
+
+Return an array of error hashes with line numbers instead of a simple boolean:
+
+```ruby
+errors = Philiprehberger::IniParser.validate("key = value\nnot valid ini\n[section]")
+# => [{line: 2, message: "invalid line: not valid ini"}]
+```
+
+### Environment Export
+
+Convert a parsed INI hash to flat `KEY=VALUE` format suitable for environment variables. Section keys become `SECTION_KEY=value` (uppercased with underscore separator).
+
+```ruby
+config = Philiprehberger::IniParser.parse(<<~INI)
+  [database]
+  host = localhost
+  port = 5432
+INI
+
+env = Philiprehberger::IniParser.to_env(config)
+# => "DATABASE_HOST=localhost\nDATABASE_PORT=5432"
+```
+
 ### Disabling Type Coercion
 
 ```ruby
@@ -165,13 +217,15 @@ sections = Philiprehberger::IniParser.sections("config.ini")
 
 | Method | Description |
 |--------|-------------|
-| `IniParser.parse(string, coerce_types: true)` | Parse an INI string into a Hash |
-| `IniParser.load(path, coerce_types: true)` | Parse an INI file into a Hash |
+| `IniParser.parse(string, coerce_types: true, interpolate: false, includes: false)` | Parse an INI string into a Hash |
+| `IniParser.load(path, coerce_types: true, interpolate: false, includes: false)` | Parse an INI file into a Hash |
 | `IniParser.dump(hash)` | Serialize a Hash to an INI string |
 | `IniParser.save(hash, path)` | Write a Hash to an INI file |
 | `IniParser.merge(base, override)` | Deep merge two INI configurations |
 | `IniParser.diff(a, b)` | Compare two parsed hashes and return added, removed, and changed keys |
 | `IniParser.valid?(string)` | Check if an INI string is syntactically valid |
+| `IniParser.validate(string)` | Return array of `{ line:, message: }` hashes for each syntax error |
+| `IniParser.to_env(hash)` | Convert parsed hash to flat `SECTION_KEY=value` environment format |
 | `IniParser.get(hash, path, default: nil)` | Retrieve a value using a dot-separated path |
 | `IniParser.set(hash, path, value)` | Set a value using a dot-separated path |
 | `IniParser.flatten(hash)` | Convert nested sections to flat dot-separated keys |
