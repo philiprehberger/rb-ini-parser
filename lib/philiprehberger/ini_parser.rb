@@ -284,6 +284,52 @@ module Philiprehberger
       current.delete(last)
     end
 
+    # Return all keys from a parsed INI hash.
+    #
+    # When no section is given, returns all keys including dot-path keys
+    # for nested sections. When a section is given, returns only the keys
+    # within that section.
+    #
+    # @param hash [Hash] parsed configuration
+    # @param section [String, nil] optional section to scope keys to
+    # @return [Array<String>] list of keys
+    def self.keys(hash, section: nil)
+      if section
+        sub = hash[section]
+        return [] unless sub.is_a?(Hash)
+
+        sub.keys
+      else
+        result = []
+        hash.each do |key, value|
+          if value.is_a?(Hash)
+            value.each_key { |sub_key| result << "#{key}.#{sub_key}" }
+          else
+            result << key.to_s
+          end
+        end
+        result
+      end
+    end
+
+    # Check whether a dot-path key exists in a parsed INI hash.
+    #
+    # @param hash [Hash] parsed configuration
+    # @param path [String] dot-separated key path (e.g. "database.host")
+    # @return [Boolean] true if the path exists
+    def self.has_key?(hash, path)
+      keys = path.to_s.split('.')
+      current = hash
+
+      keys.each do |key|
+        return false unless current.is_a?(Hash) && current.key?(key)
+
+        current = current[key]
+      end
+
+      true
+    end
+
     # Extract section names from INI content without fully parsing values.
     #
     # @param string_or_path [String] INI content string or file path

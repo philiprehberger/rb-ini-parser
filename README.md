@@ -206,6 +206,27 @@ Philiprehberger::IniParser.delete(config, "database.host")
 # => "localhost" (removed from config)
 ```
 
+### Key Inspection
+
+```ruby
+config = Philiprehberger::IniParser.parse(<<~INI)
+  name = MyApp
+
+  [database]
+  host = localhost
+  port = 5432
+INI
+
+Philiprehberger::IniParser.keys(config)
+# => ["name", "database.host", "database.port"]
+
+Philiprehberger::IniParser.keys(config, section: "database")
+# => ["host", "port"]
+
+Philiprehberger::IniParser.has_key?(config, "database.host") # => true
+Philiprehberger::IniParser.has_key?(config, "database.name") # => false
+```
+
 ### Listing Sections
 
 ```ruby
@@ -230,6 +251,8 @@ sections = Philiprehberger::IniParser.sections("config.ini")
 | `IniParser.set(hash, path, value)` | Set a value using a dot-separated path |
 | `IniParser.flatten(hash)` | Convert nested sections to flat dot-separated keys |
 | `IniParser.unflatten(hash)` | Convert dot-separated keys back to nested sections |
+| `IniParser.keys(hash, section: nil)` | Return all keys; scoped to a section when given |
+| `IniParser.has_key?(hash, path)` | Check if a dot-path key exists |
 | `IniParser.delete(hash, path)` | Delete a value by dot-separated path, returns deleted value |
 | `IniParser.sections(string_or_path)` | Extract section names without fully parsing values |
 
