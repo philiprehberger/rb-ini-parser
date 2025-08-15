@@ -1077,4 +1077,129 @@ RSpec.describe Philiprehberger::IniParser do
       expect(described_class.delete({}, 'any.path')).to be_nil
     end
   end
+
+  describe '.parse with interpolate_env' do
+    it 'expands a ${VAR} reference from ENV' do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with('DB_HOST', nil).and_return('localhost')
+
+      result = described_class.parse('host=${DB_HOST}', interpolate_env: true)
+
+      expect(result['host']).to eq('localhost')
+    end
+
+    it 'uses the default when the env var is unset' do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with('DB_HOST', nil).and_return(nil)
+
+      result = described_class.parse('host=${DB_HOST:-localhost}', interpolate_env: true)
+
+      expect(result['host']).to eq('localhost')
+    end
+
+    it 'uses the env value when set, ignoring the default' do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with('DB_HOST', nil).and_return('primary')
+
+      result = described_class.parse('host=${DB_HOST:-localhost}', interpolate_env: true)
+
+      expect(result['host']).to eq('primary')
+    end
+
+    it 'uses the default when the env var is set to an empty string' do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with('DB_HOST', nil).and_return('')
+
+      result = described_class.parse('host=${DB_HOST:-localhost}', interpolate_env: true)
+
+      expect(result['host']).to eq('localhost')
+    end
+
+    it 'returns empty string for an unknown var with no default' do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with('NO_SUCH_VAR_12345', nil).and_return(nil)
+
+      result = described_class.parse('value=${NO_SUCH_VAR_12345}', interpolate_env: true)
+
+      expect(result['value']).to eq('')
+    end
+
+    it 'does not interpolate when interpolate_env is disabled (default)' do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with('DB_HOST', nil).and_return('localhost')
+
+      result = described_class.parse('host=${DB_HOST}')
+
+      expect(result['host']).to eq('${DB_HOST}')
+    end
+
+    it 'interpolates inside quoted values' do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with('DB_HOST', nil).and_return('localhost')
+
+      result = described_class.parse('host = "${DB_HOST}"', interpolate_env: true)
+
+      expect(result['host']).to eq('localhost')
+    end
+
+    it 'does not interpolate section headers' do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with('SECTION', nil).and_return('database')
+
+      ini = "[${SECTION}]\nhost = localhost"
+      result = described_class.parse(ini, interpolate_env: true)
+
+      expect(result.keys).to eq(['${SECTION}'])
+      expect(result['${SECTION}']['host']).to eq('localhost')
+    end
+
+    it 'does not interpolate keys' do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with('KEY_NAME', nil).and_return('host')
+
+      ini = '${KEY_NAME} = localhost'
+      result = described_class.parse(ini, interpolate_env: true)
+
+      expect(result).to have_key('${KEY_NAME}')
+      expect(result['${KEY_NAME}']).to eq('localhost')
+    end
+
+    it 'trims whitespace around the default value' do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with('MISSING', nil).and_return(nil)
+
+      result = described_class.parse('value=${MISSING:-  padded  }', interpolate_env: true)
+
+      expect(result['value']).to eq('padded')
+    end
+
+    it 'expands multiple references in one value' do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with('HOST', nil).and_return('localhost')
+      allow(ENV).to receive(:fetch).with('PORT', nil).and_return('5432')
+
+      result = described_class.parse('url=${HOST}:${PORT}', interpolate_env: true)
+
+      expect(result['url']).to eq('localhost:5432')
+    end
+
+    it 'treats $$ as an escape for a literal dollar sign' do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with('VAR', nil).and_return('resolved')
+
+      result = described_class.parse('value=$${VAR} and ${VAR}', interpolate_env: true)
+
+      expect(result['value']).to eq('${VAR} and resolved')
+    end
+
+    it 'interpolates values inside sections' do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with('DB_HOST', nil).and_return('localhost')
+
+      ini = "[database]\nhost = ${DB_HOST}"
+      result = described_class.parse(ini, interpolate_env: true)
+
+      expect(result['database']['host']).to eq('localhost')
+    end
+  end
 end

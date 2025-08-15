@@ -103,6 +103,23 @@ INI
 config["logging"]["prefix"] # => "MyApp-log"
 ```
 
+### Environment Interpolation
+
+Expand `${VAR}` and `${VAR:-default}` references from the process environment. Unset or empty variables fall back to the default (with surrounding whitespace trimmed) or an empty string when no default is given. Section headers and keys are never interpolated — values only. Use `$$` to emit a literal `$`.
+
+```ruby
+ENV["DB_HOST"] = "localhost"
+
+config = Philiprehberger::IniParser.parse(<<~INI, interpolate_env: true)
+  [database]
+  host = ${DB_HOST}
+  port = ${DB_PORT:-5432}
+INI
+
+config["database"]["host"] # => "localhost"
+config["database"]["port"] # => "5432"
+```
+
 ### Include Directives
 
 Process `@include path/to/other.ini` lines to load and merge referenced files. Circular includes raise an error.
@@ -238,8 +255,8 @@ sections = Philiprehberger::IniParser.sections("config.ini")
 
 | Method | Description |
 |--------|-------------|
-| `IniParser.parse(string, coerce_types: true, interpolate: false, includes: false)` | Parse an INI string into a Hash |
-| `IniParser.load(path, coerce_types: true, interpolate: false, includes: false)` | Parse an INI file into a Hash |
+| `IniParser.parse(string, coerce_types: true, interpolate: false, interpolate_env: false, includes: false)` | Parse an INI string into a Hash |
+| `IniParser.load(path, coerce_types: true, interpolate: false, interpolate_env: false, includes: false)` | Parse an INI file into a Hash |
 | `IniParser.dump(hash)` | Serialize a Hash to an INI string |
 | `IniParser.save(hash, path)` | Write a Hash to an INI file |
 | `IniParser.merge(base, override)` | Deep merge two INI configurations |
