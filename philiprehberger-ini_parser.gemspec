@@ -8,8 +8,9 @@ Gem::Specification.new do |spec|
   spec.authors       = ['Philip Rehberger']
   spec.email         = ['me@philiprehberger.com']
   spec.summary       = 'INI file parser and writer with section support and type coercion'
-  spec.description   = 'Parse and generate INI configuration files with sections, comments, quoted values, ' \
-                       'and automatic type coercion for booleans and numbers.'
+  spec.description   = 'Parse and generate INI configuration files with sections, inline comments, ' \
+                       'multiline values, escape sequences, quoted values, and automatic type coercion ' \
+                       'for booleans and numbers.'
   spec.homepage      = 'https://github.com/philiprehberger/rb-ini-parser'
   spec.license       = 'MIT'
   spec.required_ruby_version = '>= 3.1.0'

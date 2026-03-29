@@ -2,7 +2,11 @@
 
 [![Tests](https://github.com/philiprehberger/rb-ini-parser/actions/workflows/ci.yml/badge.svg)](https://github.com/philiprehberger/rb-ini-parser/actions/workflows/ci.yml)
 [![Gem Version](https://badge.fury.io/rb/philiprehberger-ini_parser.svg)](https://rubygems.org/gems/philiprehberger-ini_parser)
+[![GitHub release](https://img.shields.io/github/v/release/philiprehberger/rb-ini-parser)](https://github.com/philiprehberger/rb-ini-parser/releases)
+[![Last updated](https://img.shields.io/github/last-commit/philiprehberger/rb-ini-parser)](https://github.com/philiprehberger/rb-ini-parser/commits/main)
 [![License](https://img.shields.io/github/license/philiprehberger/rb-ini-parser)](LICENSE)
+[![Bug Reports](https://img.shields.io/github/issues/philiprehberger/rb-ini-parser/bug)](https://github.com/philiprehberger/rb-ini-parser/issues?q=is%3Aissue+is%3Aopen+label%3Abug)
+[![Feature Requests](https://img.shields.io/github/issues/philiprehberger/rb-ini-parser/enhancement)](https://github.com/philiprehberger/rb-ini-parser/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)
 [![Sponsor](https://img.shields.io/badge/sponsor-GitHub%20Sponsors-ec6cb9)](https://github.com/sponsors/philiprehberger)
 
 INI file parser and writer with section support and type coercion
@@ -62,6 +66,32 @@ ini_string = Philiprehberger::IniParser.dump(hash)
 Philiprehberger::IniParser.save(hash, "output.ini")
 ```
 
+### Inline Comments
+
+```ruby
+config = Philiprehberger::IniParser.parse(<<~INI)
+  host = localhost ; the server host
+  port = 8080 # default port
+INI
+
+config["host"] # => "localhost"
+config["port"] # => 8080
+```
+
+### Multiline Values
+
+```ruby
+config = Philiprehberger::IniParser.parse("description = this is a\\\n  long value", coerce_types: false)
+config["description"] # => "this is a long value"
+```
+
+### Escape Sequences
+
+```ruby
+config = Philiprehberger::IniParser.parse('msg = hello\nworld', coerce_types: false)
+config["msg"] # => "hello\nworld"
+```
+
 ### Disabling Type Coercion
 
 ```ruby
@@ -78,6 +108,25 @@ local = Philiprehberger::IniParser.load("local.ini")
 merged = Philiprehberger::IniParser.merge(base, local)
 ```
 
+### Comparing Configurations
+
+```ruby
+a = Philiprehberger::IniParser.load("old.ini")
+b = Philiprehberger::IniParser.load("new.ini")
+
+diff = Philiprehberger::IniParser.diff(a, b)
+diff[:added]   # => {"section" => {"new_key" => "value"}}
+diff[:removed] # => {"section" => {"old_key" => "value"}}
+diff[:changed] # => {"section" => {"key" => {from: "old", to: "new"}}}
+```
+
+### Listing Sections
+
+```ruby
+sections = Philiprehberger::IniParser.sections("config.ini")
+# => ["database", "logging", "cache"]
+```
+
 ## API
 
 | Method | Description |
@@ -87,6 +136,8 @@ merged = Philiprehberger::IniParser.merge(base, local)
 | `IniParser.dump(hash)` | Serialize a Hash to an INI string |
 | `IniParser.save(hash, path)` | Write a Hash to an INI file |
 | `IniParser.merge(base, override)` | Deep merge two INI configurations |
+| `IniParser.diff(a, b)` | Compare two parsed hashes and return added, removed, and changed keys |
+| `IniParser.sections(string_or_path)` | Extract section names without fully parsing values |
 
 ## Development
 
@@ -95,6 +146,13 @@ bundle install
 bundle exec rspec
 bundle exec rubocop
 ```
+
+## Support
+
+If you find this package useful, consider giving it a star on GitHub — it helps motivate continued maintenance and development.
+
+[![LinkedIn](https://img.shields.io/badge/Philip%20Rehberger-LinkedIn-0A66C2?logo=linkedin)](https://www.linkedin.com/in/philiprehberger)
+[![More packages](https://img.shields.io/badge/more-open%20source%20packages-blue)](https://philiprehberger.com/open-source-packages)
 
 ## License
 
