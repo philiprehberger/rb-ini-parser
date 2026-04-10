@@ -712,4 +712,78 @@ RSpec.describe Philiprehberger::IniParser do
       expect(reparsed['data']).to eq('a;b')
     end
   end
+
+  describe '.flatten' do
+    it 'flattens sections to dot-separated keys' do
+      hash = { 'name' => 'MyApp', 'database' => { 'host' => 'localhost', 'port' => 5432 } }
+      result = described_class.flatten(hash)
+      expect(result).to eq({ 'name' => 'MyApp', 'database.host' => 'localhost', 'database.port' => 5432 })
+    end
+
+    it 'handles globals-only hash' do
+      hash = { 'a' => 1, 'b' => 2 }
+      expect(described_class.flatten(hash)).to eq({ 'a' => 1, 'b' => 2 })
+    end
+
+    it 'handles sections-only hash' do
+      hash = { 'db' => { 'host' => 'localhost' } }
+      expect(described_class.flatten(hash)).to eq({ 'db.host' => 'localhost' })
+    end
+
+    it 'returns empty hash for empty input' do
+      expect(described_class.flatten({})).to eq({})
+    end
+  end
+
+  describe '.unflatten' do
+    it 'converts dot-separated keys to nested sections' do
+      flat = { 'name' => 'MyApp', 'database.host' => 'localhost', 'database.port' => 5432 }
+      result = described_class.unflatten(flat)
+      expect(result).to eq({ 'name' => 'MyApp', 'database' => { 'host' => 'localhost', 'port' => 5432 } })
+    end
+
+    it 'handles keys without dots' do
+      flat = { 'a' => 1, 'b' => 2 }
+      expect(described_class.unflatten(flat)).to eq({ 'a' => 1, 'b' => 2 })
+    end
+
+    it 'returns empty hash for empty input' do
+      expect(described_class.unflatten({})).to eq({})
+    end
+
+    it 'round-trips with flatten' do
+      hash = { 'name' => 'MyApp', 'db' => { 'host' => 'localhost', 'port' => 5432 } }
+      expect(described_class.unflatten(described_class.flatten(hash))).to eq(hash)
+    end
+  end
+
+  describe '.delete' do
+    it 'deletes a global key' do
+      hash = { 'name' => 'MyApp', 'version' => '1.0' }
+      result = described_class.delete(hash, 'name')
+      expect(result).to eq('MyApp')
+      expect(hash).to eq({ 'version' => '1.0' })
+    end
+
+    it 'deletes a nested key by dot-path' do
+      hash = { 'database' => { 'host' => 'localhost', 'port' => 5432 } }
+      result = described_class.delete(hash, 'database.host')
+      expect(result).to eq('localhost')
+      expect(hash).to eq({ 'database' => { 'port' => 5432 } })
+    end
+
+    it 'returns nil when path does not exist' do
+      hash = { 'database' => { 'host' => 'localhost' } }
+      expect(described_class.delete(hash, 'database.missing')).to be_nil
+    end
+
+    it 'returns nil when intermediate key does not exist' do
+      hash = { 'name' => 'MyApp' }
+      expect(described_class.delete(hash, 'database.host')).to be_nil
+    end
+
+    it 'returns nil for empty hash' do
+      expect(described_class.delete({}, 'any.path')).to be_nil
+    end
+  end
 end

@@ -135,6 +135,25 @@ Philiprehberger::IniParser.valid?("[section]\nkey = value") # => true
 Philiprehberger::IniParser.valid?("not valid ini")          # => false
 ```
 
+### Flatten / Unflatten
+
+```ruby
+config = Philiprehberger::IniParser.load("config.ini")
+
+flat = Philiprehberger::IniParser.flatten(config)
+# => {"name" => "MyApp", "database.host" => "localhost", "database.port" => 5432}
+
+nested = Philiprehberger::IniParser.unflatten(flat)
+# => {"name" => "MyApp", "database" => {"host" => "localhost", "port" => 5432}}
+```
+
+### Deleting by Path
+
+```ruby
+Philiprehberger::IniParser.delete(config, "database.host")
+# => "localhost" (removed from config)
+```
+
 ### Listing Sections
 
 ```ruby
@@ -155,6 +174,9 @@ sections = Philiprehberger::IniParser.sections("config.ini")
 | `IniParser.valid?(string)` | Check if an INI string is syntactically valid |
 | `IniParser.get(hash, path, default: nil)` | Retrieve a value using a dot-separated path |
 | `IniParser.set(hash, path, value)` | Set a value using a dot-separated path |
+| `IniParser.flatten(hash)` | Convert nested sections to flat dot-separated keys |
+| `IniParser.unflatten(hash)` | Convert dot-separated keys back to nested sections |
+| `IniParser.delete(hash, path)` | Delete a value by dot-separated path, returns deleted value |
 | `IniParser.sections(string_or_path)` | Extract section names without fully parsing values |
 
 ## Development

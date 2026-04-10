@@ -146,6 +146,61 @@ module Philiprehberger
       current[last] = value
     end
 
+    # Flatten a nested INI hash to dot-separated keys.
+    #
+    # @param hash [Hash] parsed configuration
+    # @return [Hash{String => Object}] flat hash with dot-separated keys
+    def self.flatten(hash)
+      result = {}
+      hash.each do |key, value|
+        if value.is_a?(Hash)
+          value.each { |sub_key, sub_val| result["#{key}.#{sub_key}"] = sub_val }
+        else
+          result[key.to_s] = value
+        end
+      end
+      result
+    end
+
+    # Convert a flat dot-separated hash back to nested sections.
+    #
+    # @param hash [Hash{String => Object}] flat hash with dot-separated keys
+    # @return [Hash] nested configuration hash
+    def self.unflatten(hash)
+      result = {}
+      hash.each do |key, value|
+        parts = key.to_s.split('.', 2)
+        if parts.length == 2
+          result[parts[0]] ||= {}
+          result[parts[0]][parts[1]] = value
+        else
+          result[parts[0]] = value
+        end
+      end
+      result
+    end
+
+    # Delete a value by dot-separated path.
+    #
+    # @param hash [Hash] parsed configuration (mutated in place)
+    # @param path [String] dot-separated key path (e.g. "database.host")
+    # @return [Object, nil] the deleted value, or nil if the path did not exist
+    def self.delete(hash, path)
+      keys = path.to_s.split('.')
+      last = keys.pop
+      current = hash
+
+      keys.each do |key|
+        return nil unless current.is_a?(Hash) && current.key?(key)
+
+        current = current[key]
+      end
+
+      return nil unless current.is_a?(Hash)
+
+      current.delete(last)
+    end
+
     # Extract section names from INI content without fully parsing values.
     #
     # @param string_or_path [String] INI content string or file path
