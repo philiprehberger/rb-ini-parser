@@ -11,27 +11,45 @@ module Philiprehberger
 
     SECTION_RE = /\A\s*\[([^\]]+)\]\s*\z/
 
+    INTERPOLATION_RE = /\$\{([^}]+)\}/
+
     # Parse an INI string into a Hash.
     #
     # Top-level keys become global entries. Sections become nested Hashes.
     #
     # @param string [String] INI content
     # @param coerce_types [Boolean] coerce booleans, integers, and floats
+    # @param interpolate [Boolean] expand ${VAR} references after parsing
+    # @param includes [Boolean] process @include directives
     # @return [Hash] parsed configuration
     # @raise [ParseError] if the input contains invalid lines
-    def self.parse(string, coerce_types: true)
-      Parser.new.parse(string, coerce_types: coerce_types)
+    # @raise [Error] if circular includes are detected
+    def self.parse(string, coerce_types: true, interpolate: false, includes: false)
+      if includes
+        string = process_includes(string, [])
+      end
+
+      result = Parser.new.parse(string, coerce_types: coerce_types)
+
+      if interpolate
+        interpolate_hash(result, result)
+      end
+
+      result
     end
 
     # Parse an INI file into a Hash.
     #
     # @param path [String] path to an INI file
     # @param coerce_types [Boolean] coerce booleans, integers, and floats
+    # @param interpolate [Boolean] expand ${VAR} references after parsing
+    # @param includes [Boolean] process @include directives
     # @return [Hash] parsed configuration
     # @raise [ParseError] if the file contains invalid lines
     # @raise [Errno::ENOENT] if the file does not exist
-    def self.load(path, coerce_types: true)
-      parse(File.read(path, encoding: 'utf-8'), coerce_types: coerce_types)
+    # @raise [Error] if circular includes are detected
+    def self.load(path, coerce_types: true, interpolate: false, includes: false)
+      parse(File.read(path, encoding: 'utf-8'), coerce_types: coerce_types, interpolate: interpolate, includes: includes)
     end
 
     # Serialize a Hash to an INI string.
@@ -104,6 +122,71 @@ module Philiprehberger
       true
     rescue ParseError
       false
+    end
+
+    # Validate an INI string and return detailed errors.
+    #
+    # Returns an array of hashes, each with :line and :message keys,
+    # describing syntax errors found in the input. Returns an empty
+    # array if the content is valid.
+    #
+    # @param string [String] INI content
+    # @return [Array<Hash{Symbol => Object}>] validation errors
+    def self.validate(string)
+      errors = []
+      line_number = 0
+      in_continuation = false
+
+      string.each_line do |raw_line|
+        line_number += 1
+        line = raw_line.strip
+
+        if in_continuation
+          in_continuation = line.end_with?('\\')
+          next
+        end
+
+        next if line.empty?
+        next if line.match?(/\A\s*[;#]/)
+
+        if line.match?(/\A\[([^\]]+)\]\z/)
+          next
+        end
+
+        if line.match?(/\A([^=]+)=(.*)?\z/)
+          raw_value = (line.split('=', 2)[1] || '').strip
+          in_continuation = raw_value.match?(/\\\s*\z/)
+          next
+        end
+
+        errors << { line: line_number, message: "invalid line: #{raw_line.chomp}" }
+      end
+
+      errors
+    end
+
+    # Convert a parsed INI hash to flat KEY=VALUE environment format.
+    #
+    # Section keys become SECTION_KEY=value (uppercased with underscore
+    # separator). Global keys are simply uppercased.
+    #
+    # @param hash [Hash] parsed configuration
+    # @return [String] environment variable format
+    def self.to_env(hash)
+      lines = []
+
+      hash.each do |key, value|
+        if value.is_a?(Hash)
+          value.each do |sub_key, sub_val|
+            env_key = "#{key}_#{sub_key}".upcase
+            lines << "#{env_key}=#{sub_val}"
+          end
+        else
+          lines << "#{key.upcase}=#{value}"
+        end
+      end
+
+      lines.join("\n")
     end
 
     # Retrieve a value from a parsed hash using a dot-separated path.
@@ -263,5 +346,92 @@ module Philiprehberger
       hash[key] = value
     end
     private_class_method :add_to_result
+
+    # Process @include directives in INI content.
+    #
+    # @param string [String] INI content
+    # @param seen [Array<String>] already-included file paths for circular detection
+    # @return [String] content with includes expanded
+    # @raise [Error] if circular includes are detected
+    # @api private
+    def self.process_includes(string, seen)
+      lines = []
+
+      string.each_line do |raw_line|
+        line = raw_line.strip
+        if line.match?(/\A@include\s+/)
+          path = line.sub(/\A@include\s+/, '').strip
+          resolved = File.expand_path(path)
+
+          if seen.include?(resolved)
+            raise Error, "circular include detected: #{resolved}"
+          end
+
+          included_content = File.read(resolved, encoding: 'utf-8')
+          lines << process_includes(included_content, seen + [resolved])
+        else
+          lines << raw_line
+        end
+      end
+
+      lines.join
+    end
+    private_class_method :process_includes
+
+    # Interpolate ${VAR} references in all string values of a hash.
+    #
+    # Resolves references first from the parsed INI values (section.key),
+    # then falls back to ENV. Unresolved variables remain as-is.
+    #
+    # @param hash [Hash] the hash to interpolate (mutated in place)
+    # @param root [Hash] the full parsed hash for lookups
+    # @api private
+    def self.interpolate_hash(hash, root)
+      hash.each do |key, value|
+        if value.is_a?(Hash)
+          interpolate_hash(value, root)
+        elsif value.is_a?(String)
+          hash[key] = interpolate_value(value, root)
+        end
+      end
+    end
+    private_class_method :interpolate_hash
+
+    # Interpolate ${VAR} references in a single string value.
+    #
+    # @param value [String] the string to interpolate
+    # @param root [Hash] the full parsed hash for lookups
+    # @return [String] interpolated value
+    # @api private
+    def self.interpolate_value(value, root)
+      value.gsub(INTERPOLATION_RE) do |match|
+        ref = ::Regexp.last_match(1)
+        resolved = resolve_reference(ref, root)
+        resolved.nil? ? match : resolved.to_s
+      end
+    end
+    private_class_method :interpolate_value
+
+    # Resolve a variable reference from parsed values or ENV.
+    #
+    # Supports dot-separated paths (section.key) for INI lookups.
+    #
+    # @param ref [String] variable reference (e.g. "section.key" or "VAR")
+    # @param root [Hash] the full parsed hash
+    # @return [Object, nil] resolved value or nil
+    # @api private
+    def self.resolve_reference(ref, root)
+      parts = ref.split('.')
+      current = root
+
+      parts.each do |part|
+        return ENV.fetch(ref, nil) unless current.is_a?(Hash) && current.key?(part)
+
+        current = current[part]
+      end
+
+      current
+    end
+    private_class_method :resolve_reference
   end
 end

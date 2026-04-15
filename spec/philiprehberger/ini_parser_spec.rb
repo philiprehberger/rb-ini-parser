@@ -757,6 +757,221 @@ RSpec.describe Philiprehberger::IniParser do
     end
   end
 
+  describe '.parse with interpolate' do
+    it 'expands a simple variable reference' do
+      ini = "[app]\nname = MyApp\ntitle = Welcome to ${app.name}"
+      result = described_class.parse(ini, interpolate: true)
+
+      expect(result['app']['title']).to eq('Welcome to MyApp')
+    end
+
+    it 'expands multiple references in one value' do
+      ini = "[db]\nhost = localhost\nport = 5432\nurl = ${db.host}:${db.port}"
+      result = described_class.parse(ini, interpolate: true)
+
+      expect(result['db']['url']).to eq('localhost:5432')
+    end
+
+    it 'expands nested references across sections' do
+      ini = "[app]\nname = MyApp\n\n[logging]\nprefix = ${app.name}-log"
+      result = described_class.parse(ini, interpolate: true)
+
+      expect(result['logging']['prefix']).to eq('MyApp-log')
+    end
+
+    it 'falls back to ENV for unresolved INI references' do
+      ENV['INI_TEST_FALLBACK'] = 'from_env'
+      ini = 'value = ${INI_TEST_FALLBACK}'
+      result = described_class.parse(ini, interpolate: true)
+
+      expect(result['value']).to eq('from_env')
+    ensure
+      ENV.delete('INI_TEST_FALLBACK')
+    end
+
+    it 'leaves unresolved variables as-is' do
+      ini = 'value = ${NONEXISTENT_VAR_12345}'
+      result = described_class.parse(ini, interpolate: true)
+
+      expect(result['value']).to eq('${NONEXISTENT_VAR_12345}')
+    end
+
+    it 'does not interpolate when interpolate is false' do
+      ini = "[app]\nname = MyApp\ntitle = ${app.name}"
+      result = described_class.parse(ini, interpolate: false)
+
+      expect(result['app']['title']).to eq('${app.name}')
+    end
+
+    it 'interpolates global key references' do
+      ini = "base = /opt\npath = ${base}/app"
+      result = described_class.parse(ini, interpolate: true)
+
+      expect(result['path']).to eq('/opt/app')
+    end
+
+    it 'handles values with no interpolation markers' do
+      ini = 'name = plain value'
+      result = described_class.parse(ini, interpolate: true)
+
+      expect(result['name']).to eq('plain value')
+    end
+
+    it 'does not interpolate non-string values' do
+      ini = 'port = 8080'
+      result = described_class.parse(ini, interpolate: true)
+
+      expect(result['port']).to eq(8080)
+    end
+  end
+
+  describe '.parse with includes' do
+    it 'includes content from another file' do
+      included = Tempfile.new(['included', '.ini'])
+      included.write("[database]\nhost = localhost\n")
+      included.close
+
+      ini = "name = MyApp\n@include #{included.path}"
+      result = described_class.parse(ini, includes: true)
+
+      expect(result['name']).to eq('MyApp')
+      expect(result['database']['host']).to eq('localhost')
+    ensure
+      included&.unlink
+    end
+
+    it 'includes multiple files' do
+      file_a = Tempfile.new(['a', '.ini'])
+      file_a.write("[section_a]\nkey = value_a\n")
+      file_a.close
+
+      file_b = Tempfile.new(['b', '.ini'])
+      file_b.write("[section_b]\nkey = value_b\n")
+      file_b.close
+
+      ini = "@include #{file_a.path}\n@include #{file_b.path}\n"
+      result = described_class.parse(ini, includes: true)
+
+      expect(result['section_a']['key']).to eq('value_a')
+      expect(result['section_b']['key']).to eq('value_b')
+    ensure
+      file_a&.unlink
+      file_b&.unlink
+    end
+
+    it 'detects circular includes and raises Error' do
+      file_a = Tempfile.new(['circular_a', '.ini'])
+      file_b = Tempfile.new(['circular_b', '.ini'])
+
+      file_a.write("@include #{file_b.path}\n")
+      file_a.close
+      file_b.write("@include #{file_a.path}\n")
+      file_b.close
+
+      ini = "@include #{file_a.path}"
+
+      expect { described_class.parse(ini, includes: true) }.to raise_error(
+        Philiprehberger::IniParser::Error, /circular include detected/
+      )
+    ensure
+      file_a&.unlink
+      file_b&.unlink
+    end
+
+    it 'does not process includes when includes is false' do
+      ini = "@include some/file.ini\nname = MyApp"
+
+      expect { described_class.parse(ini, includes: false) }.to raise_error(
+        Philiprehberger::IniParser::ParseError
+      )
+    end
+  end
+
+  describe '.validate' do
+    it 'returns empty array for valid content' do
+      ini = "[section]\nkey = value\n"
+      expect(described_class.validate(ini)).to eq([])
+    end
+
+    it 'returns errors with line numbers for invalid lines' do
+      ini = "key = value\nnot valid\nanother bad line"
+      errors = described_class.validate(ini)
+
+      expect(errors.length).to eq(2)
+      expect(errors[0]).to eq({ line: 2, message: 'invalid line: not valid' })
+      expect(errors[1]).to eq({ line: 3, message: 'invalid line: another bad line' })
+    end
+
+    it 'returns empty array for empty content' do
+      expect(described_class.validate('')).to eq([])
+    end
+
+    it 'returns empty array for comments only' do
+      expect(described_class.validate("; comment\n# another")).to eq([])
+    end
+
+    it 'identifies multiple errors in mixed content' do
+      ini = "[section]\nkey = value\nbad line\n\n; comment\nanother bad"
+      errors = described_class.validate(ini)
+
+      expect(errors.length).to eq(2)
+      expect(errors[0][:line]).to eq(3)
+      expect(errors[1][:line]).to eq(6)
+    end
+
+    it 'handles continuation lines correctly' do
+      ini = "key = value\\\n  continued\nbad line"
+      errors = described_class.validate(ini)
+
+      expect(errors.length).to eq(1)
+      expect(errors[0][:line]).to eq(3)
+    end
+
+    it 'returns empty array for sections with no keys' do
+      expect(described_class.validate("[section]\n[another]")).to eq([])
+    end
+  end
+
+  describe '.to_env' do
+    it 'converts global keys to uppercase' do
+      hash = { 'name' => 'MyApp', 'version' => 1 }
+      result = described_class.to_env(hash)
+
+      expect(result).to eq("NAME=MyApp\nVERSION=1")
+    end
+
+    it 'converts section keys to SECTION_KEY format' do
+      hash = { 'database' => { 'host' => 'localhost', 'port' => 5432 } }
+      result = described_class.to_env(hash)
+
+      expect(result).to include('DATABASE_HOST=localhost')
+      expect(result).to include('DATABASE_PORT=5432')
+    end
+
+    it 'handles mixed globals and sections' do
+      hash = {
+        'name' => 'MyApp',
+        'database' => { 'host' => 'localhost' }
+      }
+      result = described_class.to_env(hash)
+
+      expect(result).to include('NAME=MyApp')
+      expect(result).to include('DATABASE_HOST=localhost')
+    end
+
+    it 'returns empty string for empty hash' do
+      expect(described_class.to_env({})).to eq('')
+    end
+
+    it 'handles boolean values' do
+      hash = { 'flags' => { 'debug' => true, 'verbose' => false } }
+      result = described_class.to_env(hash)
+
+      expect(result).to include('FLAGS_DEBUG=true')
+      expect(result).to include('FLAGS_VERBOSE=false')
+    end
+  end
+
   describe '.delete' do
     it 'deletes a global key' do
       hash = { 'name' => 'MyApp', 'version' => '1.0' }
