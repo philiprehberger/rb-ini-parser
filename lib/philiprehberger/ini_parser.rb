@@ -13,6 +13,8 @@ module Philiprehberger
 
     INTERPOLATION_RE = /\$\{([^}]+)\}/
 
+    ENV_INTERPOLATION_RE = /\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-(.*?))?\}/
+
     # Parse an INI string into a Hash.
     #
     # Top-level keys become global entries. Sections become nested Hashes.
@@ -20,11 +22,12 @@ module Philiprehberger
     # @param string [String] INI content
     # @param coerce_types [Boolean] coerce booleans, integers, and floats
     # @param interpolate [Boolean] expand ${VAR} references after parsing
+    # @param interpolate_env [Boolean] expand ${VAR} and ${VAR:-default} from ENV
     # @param includes [Boolean] process @include directives
     # @return [Hash] parsed configuration
     # @raise [ParseError] if the input contains invalid lines
     # @raise [Error] if circular includes are detected
-    def self.parse(string, coerce_types: true, interpolate: false, includes: false)
+    def self.parse(string, coerce_types: true, interpolate: false, interpolate_env: false, includes: false)
       if includes
         string = process_includes(string, [])
       end
@@ -35,6 +38,10 @@ module Philiprehberger
         interpolate_hash(result, result)
       end
 
+      if interpolate_env
+        interpolate_env_hash(result)
+      end
+
       result
     end
 
@@ -43,13 +50,20 @@ module Philiprehberger
     # @param path [String] path to an INI file
     # @param coerce_types [Boolean] coerce booleans, integers, and floats
     # @param interpolate [Boolean] expand ${VAR} references after parsing
+    # @param interpolate_env [Boolean] expand ${VAR} and ${VAR:-default} from ENV
     # @param includes [Boolean] process @include directives
     # @return [Hash] parsed configuration
     # @raise [ParseError] if the file contains invalid lines
     # @raise [Errno::ENOENT] if the file does not exist
     # @raise [Error] if circular includes are detected
-    def self.load(path, coerce_types: true, interpolate: false, includes: false)
-      parse(File.read(path, encoding: 'utf-8'), coerce_types: coerce_types, interpolate: interpolate, includes: includes)
+    def self.load(path, coerce_types: true, interpolate: false, interpolate_env: false, includes: false)
+      parse(
+        File.read(path, encoding: 'utf-8'),
+        coerce_types: coerce_types,
+        interpolate: interpolate,
+        interpolate_env: interpolate_env,
+        includes: includes
+      )
     end
 
     # Serialize a Hash to an INI string.
@@ -479,5 +493,50 @@ module Philiprehberger
       current
     end
     private_class_method :resolve_reference
+
+    # Interpolate ${VAR} and ${VAR:-default} references from ENV in all
+    # string values of a hash. Section headers and keys are not interpolated.
+    #
+    # @param hash [Hash] the hash to interpolate (mutated in place)
+    # @api private
+    def self.interpolate_env_hash(hash)
+      hash.each do |key, value|
+        if value.is_a?(Hash)
+          interpolate_env_hash(value)
+        elsif value.is_a?(String)
+          hash[key] = interpolate_env_value(value)
+        end
+      end
+    end
+    private_class_method :interpolate_env_hash
+
+    # Interpolate ${VAR} and ${VAR:-default} references from ENV in a string.
+    #
+    # Supports `$$` as an escape for a literal `$` so `$${VAR}` produces
+    # `${VAR}` verbatim. An unset or empty env var with no default becomes
+    # an empty string.
+    #
+    # @param value [String] the string to interpolate
+    # @return [String] interpolated value
+    # @api private
+    def self.interpolate_env_value(value)
+      placeholder = "\x00PHILIPREHBERGER_INI_DOLLAR\x00"
+      protected_value = value.gsub('$$', placeholder)
+
+      expanded = protected_value.gsub(ENV_INTERPOLATION_RE) do
+        name = ::Regexp.last_match(1)
+        default = ::Regexp.last_match(2)
+        env_value = ENV.fetch(name, nil)
+
+        if env_value.nil? || env_value.empty?
+          default.nil? ? '' : default.strip
+        else
+          env_value
+        end
+      end
+
+      expanded.gsub(placeholder, '$')
+    end
+    private_class_method :interpolate_env_value
   end
 end

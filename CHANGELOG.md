@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-04-16
+
+### Added
+- Environment variable interpolation via `interpolate_env: true` parser option with `${VAR}` and `${VAR:-default}` syntax
+
 ## [0.6.0] - 2026-04-15
 
 ### Added
