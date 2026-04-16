@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-04-15
+
+### Added
+- `keys(hash, section: nil)` to return all keys, with optional section scoping and dot-path keys for nested hashes
+- `has_key?(hash, path)` to check if a dot-path key exists in a parsed hash
+
 ## [0.5.1] - 2026-04-15
 
 ### Changed

@@ -972,6 +972,82 @@ RSpec.describe Philiprehberger::IniParser do
     end
   end
 
+  describe '.keys' do
+    let(:config) do
+      {
+        'name' => 'MyApp',
+        'database' => { 'host' => 'localhost', 'port' => 5432 },
+        'logging' => { 'level' => 'info' }
+      }
+    end
+
+    it 'returns all dot-path keys when no section is given' do
+      result = described_class.keys(config)
+      expect(result).to eq(%w[name database.host database.port logging.level])
+    end
+
+    it 'returns keys within a specific section' do
+      result = described_class.keys(config, section: 'database')
+      expect(result).to eq(%w[host port])
+    end
+
+    it 'returns empty array for a missing section' do
+      result = described_class.keys(config, section: 'missing')
+      expect(result).to eq([])
+    end
+
+    it 'returns empty array for a non-hash section' do
+      result = described_class.keys(config, section: 'name')
+      expect(result).to eq([])
+    end
+
+    it 'returns empty array for empty hash' do
+      expect(described_class.keys({})).to eq([])
+    end
+
+    it 'returns only global keys when there are no sections' do
+      flat = { 'a' => 1, 'b' => 2 }
+      expect(described_class.keys(flat)).to eq(%w[a b])
+    end
+  end
+
+  describe '.has_key?' do
+    let(:config) do
+      {
+        'name' => 'MyApp',
+        'database' => { 'host' => 'localhost', 'port' => 5432 }
+      }
+    end
+
+    it 'returns true for an existing global key' do
+      expect(described_class.has_key?(config, 'name')).to be true
+    end
+
+    it 'returns true for an existing nested key' do
+      expect(described_class.has_key?(config, 'database.host')).to be true
+    end
+
+    it 'returns true for a section key' do
+      expect(described_class.has_key?(config, 'database')).to be true
+    end
+
+    it 'returns false for a missing global key' do
+      expect(described_class.has_key?(config, 'missing')).to be false
+    end
+
+    it 'returns false for a missing nested key' do
+      expect(described_class.has_key?(config, 'database.missing')).to be false
+    end
+
+    it 'returns false for a path through a non-hash value' do
+      expect(described_class.has_key?(config, 'name.sub')).to be false
+    end
+
+    it 'returns false for empty hash' do
+      expect(described_class.has_key?({}, 'any.path')).to be false
+    end
+  end
+
   describe '.delete' do
     it 'deletes a global key' do
       hash = { 'name' => 'MyApp', 'version' => '1.0' }
