@@ -534,6 +534,55 @@ RSpec.describe Philiprehberger::IniParser do
     end
   end
 
+  describe '.filter' do
+    let(:config) do
+      {
+        'name' => 'MyApp',
+        'database' => { 'host' => 'localhost', 'port' => 5432 },
+        'cache' => { 'ttl' => 60 },
+        'logging' => { 'level' => 'info' }
+      }
+    end
+
+    it 'returns only the named section when given a string' do
+      result = described_class.filter(config, section: 'database')
+
+      expect(result).to eq('database' => { 'host' => 'localhost', 'port' => 5432 })
+    end
+
+    it 'returns multiple sections when given an array' do
+      result = described_class.filter(config, section: %w[database cache])
+
+      expect(result).to eq(
+        'database' => { 'host' => 'localhost', 'port' => 5432 },
+        'cache' => { 'ttl' => 60 }
+      )
+    end
+
+    it 'returns an empty hash for unknown sections' do
+      result = described_class.filter(config, section: 'missing')
+
+      expect(result).to eq({})
+    end
+
+    it 'does not mutate the input hash' do
+      snapshot = config.dup
+      described_class.filter(config, section: 'database')
+
+      expect(config).to eq(snapshot)
+    end
+
+    it 'matches string keys when given a symbol section' do
+      result = described_class.filter(config, section: :database)
+
+      expect(result).to eq('database' => { 'host' => 'localhost', 'port' => 5432 })
+    end
+
+    it 'raises ArgumentError when hash is not a Hash' do
+      expect { described_class.filter('not a hash', section: 'database') }.to raise_error(ArgumentError)
+    end
+  end
+
   describe '.sections' do
     it 'returns section names from an INI string' do
       ini = <<~INI

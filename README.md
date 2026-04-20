@@ -251,6 +251,14 @@ sections = Philiprehberger::IniParser.sections("config.ini")
 # => ["database", "logging", "cache"]
 ```
 
+### Filter sections
+
+```ruby
+hash = Philiprehberger::IniParser.parse(ini_text)
+Philiprehberger::IniParser.filter(hash, section: "database")
+Philiprehberger::IniParser.filter(hash, section: ["database", "cache"])
+```
+
 ## API
 
 | Method | Description |
@@ -272,6 +280,7 @@ sections = Philiprehberger::IniParser.sections("config.ini")
 | `IniParser.has_key?(hash, path)` | Check if a dot-path key exists |
 | `IniParser.delete(hash, path)` | Delete a value by dot-separated path, returns deleted value |
 | `IniParser.sections(string_or_path)` | Extract section names without fully parsing values |
+| `IniParser.filter(hash, section:)` | Return a copy of the hash containing only the named section(s) |
 
 ## Development
 
