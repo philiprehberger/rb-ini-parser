@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-04-19
+
+### Added
+- `IniParser.filter(hash, section:)` — return a copy of the parsed hash containing only the named section(s); accepts a string, symbol, or array
+
 ## [0.7.0] - 2026-04-16
 
 ### Added

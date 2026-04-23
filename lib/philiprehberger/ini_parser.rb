@@ -101,6 +101,25 @@ module Philiprehberger
       end
     end
 
+    # Filter a parsed INI hash to only the named section(s).
+    #
+    # Returns a new hash containing only the entries whose keys match the
+    # given section name(s). The input hash is not mutated. Unknown sections
+    # are silently ignored and yield an empty hash.
+    #
+    # @param hash [Hash] parsed configuration
+    # @param section [String, Symbol, Array<String, Symbol>] section name(s) to keep
+    # @return [Hash] new hash containing only the named section(s)
+    # @raise [ArgumentError] if hash is not a Hash
+    def self.filter(hash, section:)
+      raise ArgumentError, 'hash must be a Hash' unless hash.is_a?(Hash)
+
+      sections = Array(section).map(&:to_s)
+      hash.each_with_object({}) do |(k, v), acc|
+        acc[k] = v if sections.include?(k.to_s)
+      end
+    end
+
     # Compare two parsed INI hashes and return a diff.
     #
     # @param a [Hash] first configuration (from parse)
