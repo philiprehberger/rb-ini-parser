@@ -259,6 +259,14 @@ Philiprehberger::IniParser.filter(hash, section: "database")
 Philiprehberger::IniParser.filter(hash, section: ["database", "cache"])
 ```
 
+### Section Existence Check
+
+```ruby
+hash = Philiprehberger::IniParser.parse(ini_text)
+Philiprehberger::IniParser.has_section?(hash, "database")  # => true
+Philiprehberger::IniParser.has_section?(hash, :missing)    # => false
+```
+
 ## API
 
 | Method | Description |
@@ -281,6 +289,7 @@ Philiprehberger::IniParser.filter(hash, section: ["database", "cache"])
 | `IniParser.delete(hash, path)` | Delete a value by dot-separated path, returns deleted value |
 | `IniParser.sections(string_or_path)` | Extract section names without fully parsing values |
 | `IniParser.filter(hash, section:)` | Return a copy of the hash containing only the named section(s) |
+| `IniParser.has_section?(hash, name)` | Whether the hash has the given top-level section (Hash value) |
 
 ## Development
 

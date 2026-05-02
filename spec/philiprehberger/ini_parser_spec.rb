@@ -583,6 +583,38 @@ RSpec.describe Philiprehberger::IniParser do
     end
   end
 
+  describe '.has_section?' do
+    let(:parsed) do
+      described_class.parse(<<~INI)
+        global = top
+        [database]
+        host = localhost
+        [logging]
+        level = info
+      INI
+    end
+
+    it 'returns true for a present section' do
+      expect(described_class.has_section?(parsed, 'database')).to be(true)
+    end
+
+    it 'returns true for a section name passed as a symbol' do
+      expect(described_class.has_section?(parsed, :logging)).to be(true)
+    end
+
+    it 'returns false for a global key (scalar value)' do
+      expect(described_class.has_section?(parsed, 'global')).to be(false)
+    end
+
+    it 'returns false for an unknown section' do
+      expect(described_class.has_section?(parsed, 'missing')).to be(false)
+    end
+
+    it 'raises ArgumentError when hash is not a Hash' do
+      expect { described_class.has_section?('nope', 'database') }.to raise_error(ArgumentError)
+    end
+  end
+
   describe '.sections' do
     it 'returns section names from an INI string' do
       ini = <<~INI

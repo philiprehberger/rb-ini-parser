@@ -120,6 +120,23 @@ module Philiprehberger
       end
     end
 
+    # Whether a parsed INI hash contains the given section.
+    #
+    # A section is a top-level key whose value is a Hash. Returns `false` if
+    # the key exists but maps to a scalar (i.e. is a global key, not a
+    # section). String/symbol-equivalent names are matched after `to_s`.
+    #
+    # @param hash [Hash] parsed configuration
+    # @param name [String, Symbol] the section name to check
+    # @return [Boolean]
+    # @raise [ArgumentError] if hash is not a Hash
+    def self.has_section?(hash, name)
+      raise ArgumentError, 'hash must be a Hash' unless hash.is_a?(Hash)
+
+      target = name.to_s
+      hash.any? { |k, v| k.to_s == target && v.is_a?(Hash) }
+    end
+
     # Compare two parsed INI hashes and return a diff.
     #
     # @param a [Hash] first configuration (from parse)
