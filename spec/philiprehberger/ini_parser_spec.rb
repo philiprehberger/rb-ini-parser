@@ -762,6 +762,57 @@ RSpec.describe Philiprehberger::IniParser do
     end
   end
 
+  describe '.update' do
+    it 'yields the current value, writes the block return, and returns the new value for a top-level key' do
+      config = { 'name' => 'MyApp' }
+      yielded = nil
+
+      result = described_class.update(config, 'name') do |value|
+        yielded = value
+        'NewApp'
+      end
+
+      expect(yielded).to eq('MyApp')
+      expect(result).to eq('NewApp')
+      expect(config['name']).to eq('NewApp')
+    end
+
+    it 'yields the current value, writes the block return, and returns the new value for a nested key' do
+      config = { 'database' => { 'host' => 'localhost', 'port' => 5432 } }
+      yielded = nil
+
+      result = described_class.update(config, 'database.port') do |value|
+        yielded = value
+        value + 1
+      end
+
+      expect(yielded).to eq(5432)
+      expect(result).to eq(5433)
+      expect(config).to eq('database' => { 'host' => 'localhost', 'port' => 5433 })
+    end
+
+    it 'returns nil and does not call the block when the path is absent' do
+      config = { 'database' => { 'host' => 'localhost' } }
+      snapshot = Marshal.load(Marshal.dump(config))
+      call_count = 0
+
+      result = described_class.update(config, 'database.missing') do |_value|
+        call_count += 1
+        'should not be written'
+      end
+
+      expect(result).to be_nil
+      expect(call_count).to eq(0)
+      expect(config).to eq(snapshot)
+    end
+
+    it 'raises ArgumentError when called without a block' do
+      config = { 'name' => 'MyApp' }
+
+      expect { described_class.update(config, 'name') }.to raise_error(ArgumentError, 'block required')
+    end
+  end
+
   describe 'roundtrip' do
     it 'parse then dump preserves data' do
       ini = <<~INI

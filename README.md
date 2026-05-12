@@ -282,6 +282,7 @@ Philiprehberger::IniParser.has_section?(hash, :missing)    # => false
 | `IniParser.to_env(hash)` | Convert parsed hash to flat `SECTION_KEY=value` environment format |
 | `IniParser.get(hash, path, default: nil)` | Retrieve a value using a dot-separated path |
 | `IniParser.set(hash, path, value)` | Set a value using a dot-separated path |
+| `IniParser.update(hash, path) { \|value\| ... }` | Yield the current value at a dot-path, write the block's return; returns the new value or nil when the path is absent |
 | `IniParser.flatten(hash)` | Convert nested sections to flat dot-separated keys |
 | `IniParser.unflatten(hash)` | Convert dot-separated keys back to nested sections |
 | `IniParser.keys(hash, section: nil)` | Return all keys; scoped to a section when given |

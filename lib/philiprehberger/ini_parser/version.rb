@@ -2,6 +2,6 @@
 
 module Philiprehberger
   module IniParser
-    VERSION = '0.9.0'
+    VERSION = '0.10.0'
   end
 end

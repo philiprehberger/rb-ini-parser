@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-05-12
+
+### Added
+- `IniParser.update(hash, path) { |value| ... }` yields the current value at a dot-separated path, writes the block's return value back, and returns the new value; returns `nil` and skips the write when the path is absent
+
 ## [0.9.0] - 2026-05-01
 
 ### Added

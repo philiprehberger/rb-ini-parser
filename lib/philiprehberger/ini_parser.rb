@@ -279,6 +279,30 @@ module Philiprehberger
       current[last] = value
     end
 
+    # Yield the current value at a dot-separated path and write the block's
+    # return value back.
+    #
+    # When the path is absent, returns `nil` without invoking the block and
+    # without mutating the hash. Otherwise reads the current value, yields it
+    # to the block, writes the block's return value at the same path, and
+    # returns the new value.
+    #
+    # @param hash [Hash] parsed configuration (mutated in place when the path exists)
+    # @param path [String] dot-separated key path (e.g. "database.port")
+    # @yieldparam value [Object] the current value at the path
+    # @yieldreturn [Object] the new value to write at the path
+    # @return [Object, nil] the new value, or nil when the path is absent
+    # @raise [ArgumentError] if no block is given
+    def self.update(hash, path, &block)
+      raise ArgumentError, 'block required' unless block
+
+      return nil unless has_key?(hash, path)
+
+      new_value = block.call(get(hash, path))
+      set(hash, path, new_value)
+      new_value
+    end
+
     # Flatten a nested INI hash to dot-separated keys.
     #
     # @param hash [Hash] parsed configuration
