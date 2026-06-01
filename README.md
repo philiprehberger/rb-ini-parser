@@ -4,6 +4,8 @@
 [![Gem Version](https://badge.fury.io/rb/philiprehberger-ini_parser.svg)](https://rubygems.org/gems/philiprehberger-ini_parser)
 [![Last updated](https://img.shields.io/github/last-commit/philiprehberger/rb-ini-parser)](https://github.com/philiprehberger/rb-ini-parser/commits/main)
 
+![philiprehberger-ini_parser](https://raw.githubusercontent.com/philiprehberger/rb-ini-parser/main/package-card.webp)
+
 INI file parser and writer with section support and type coercion
 
 ## Requirements
@@ -244,6 +246,28 @@ Philiprehberger::IniParser.has_key?(config, "database.host") # => true
 Philiprehberger::IniParser.has_key?(config, "database.name") # => false
 ```
 
+### Iterating Leaves
+
+Yield every leaf as a `[dot-path, value]` pair. Useful for logging, metric emission, redaction, or any case where each leaf needs uniform handling. Returns an `Enumerator` when no block is given.
+
+```ruby
+config = Philiprehberger::IniParser.parse(<<~INI)
+  name = MyApp
+
+  [database]
+  host = localhost
+  port = 5432
+INI
+
+Philiprehberger::IniParser.each_pair(config) { |path, value| puts "#{path}=#{value}" }
+# name=MyApp
+# database.host=localhost
+# database.port=5432
+
+# Combine with Enumerable for filtering
+secrets = Philiprehberger::IniParser.each_pair(config).select { |path, _| path.include?('password') }
+```
+
 ### Listing Sections
 
 ```ruby
@@ -287,6 +311,7 @@ Philiprehberger::IniParser.has_section?(hash, :missing)    # => false
 | `IniParser.unflatten(hash)` | Convert dot-separated keys back to nested sections |
 | `IniParser.keys(hash, section: nil)` | Return all keys; scoped to a section when given |
 | `IniParser.has_key?(hash, path)` | Check if a dot-path key exists |
+| `IniParser.each_pair(hash) { \|path, value\| ... }` | Yield every leaf as a dot-path / value pair; returns Enumerator without a block |
 | `IniParser.delete(hash, path)` | Delete a value by dot-separated path, returns deleted value |
 | `IniParser.sections(string_or_path)` | Extract section names without fully parsing values |
 | `IniParser.filter(hash, section:)` | Return a copy of the hash containing only the named section(s) |

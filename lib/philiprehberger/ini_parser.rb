@@ -386,6 +386,28 @@ module Philiprehberger
       end
     end
 
+    # Yield each leaf as a dot-separated path / value pair.
+    #
+    # Walks the nested hash and yields `[path, value]` for every non-Hash
+    # leaf. Top-level scalars yield with their key as the path. Section keys
+    # yield as `"section.key"`. Returns an `Enumerator` when no block is given.
+    #
+    # @param hash [Hash] parsed configuration
+    # @yieldparam path [String] dot-separated path to the leaf
+    # @yieldparam value [Object] the leaf value
+    # @return [Enumerator<Array(String, Object)>] when no block is given
+    def self.each_pair(hash, &block)
+      return enum_for(:each_pair, hash) unless block
+
+      hash.each do |key, value|
+        if value.is_a?(Hash)
+          value.each { |sub_key, sub_val| block.call(["#{key}.#{sub_key}", sub_val]) }
+        else
+          block.call([key.to_s, value])
+        end
+      end
+    end
+
     # Check whether a dot-path key exists in a parsed INI hash.
     #
     # @param hash [Hash] parsed configuration

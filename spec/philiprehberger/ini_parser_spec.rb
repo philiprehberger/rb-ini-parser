@@ -1180,6 +1180,49 @@ RSpec.describe Philiprehberger::IniParser do
     end
   end
 
+  describe '.each_pair' do
+    let(:config) do
+      {
+        'name' => 'MyApp',
+        'database' => { 'host' => 'localhost', 'port' => 5432 }
+      }
+    end
+
+    it 'yields every leaf as a [path, value] pair' do
+      pairs = []
+      described_class.each_pair(config) { |path, value| pairs << [path, value] }
+      expect(pairs).to contain_exactly(
+        ['name', 'MyApp'],
+        ['database.host', 'localhost'],
+        ['database.port', 5432]
+      )
+    end
+
+    it 'returns an Enumerator when no block is given' do
+      result = described_class.each_pair(config)
+      expect(result).to be_a(Enumerator)
+      expect(result.to_a).to contain_exactly(
+        ['name', 'MyApp'],
+        ['database.host', 'localhost'],
+        ['database.port', 5432]
+      )
+    end
+
+    it 'is composable with Enumerable' do
+      paths = described_class.each_pair(config).map { |path, _| path }
+      expect(paths).to contain_exactly('name', 'database.host', 'database.port')
+    end
+
+    it 'yields nothing for an empty hash' do
+      expect(described_class.each_pair({}).to_a).to eq([])
+    end
+
+    it 'yields only top-level entries when no nested sections exist' do
+      flat = { 'a' => 1, 'b' => 2 }
+      expect(described_class.each_pair(flat).to_a).to contain_exactly(['a', 1], ['b', 2])
+    end
+  end
+
   describe '.delete' do
     it 'deletes a global key' do
       hash = { 'name' => 'MyApp', 'version' => '1.0' }
