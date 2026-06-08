@@ -1192,7 +1192,7 @@ RSpec.describe Philiprehberger::IniParser do
       pairs = []
       described_class.each_pair(config) { |path, value| pairs << [path, value] }
       expect(pairs).to contain_exactly(
-        ['name', 'MyApp'],
+        %w[name MyApp],
         ['database.host', 'localhost'],
         ['database.port', 5432]
       )
@@ -1202,7 +1202,7 @@ RSpec.describe Philiprehberger::IniParser do
       result = described_class.each_pair(config)
       expect(result).to be_a(Enumerator)
       expect(result.to_a).to contain_exactly(
-        ['name', 'MyApp'],
+        %w[name MyApp],
         ['database.host', 'localhost'],
         ['database.port', 5432]
       )
